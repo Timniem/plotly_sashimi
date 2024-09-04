@@ -22,6 +22,7 @@ def parse_arguments():
         argparser.add_argument("-g", "--gtf", type=str, required=True)
         argparser.add_argument("-o","--output", default="output", type=str)
         argparser.add_argument("-s", "--strand", default="NONE", type=str)
+        argparser.add_argument("-v", "--vcf", default=False, type=str)
 
         return argparser.parse_args()
 
@@ -150,7 +151,23 @@ def parse_gtf(gtf_file, chromosome, start, end):
     
     return pd.DataFrame(annotations)
 
-def create_sashimi(coverage_data, junctions, start, end, annotations):
+def parse_vcf(vcf_file, chromosome, start, end):
+    variants = []
+    # Open the VCF file with pysam (handles both gzipped and uncompressed files)
+    vcf_in = pysam.VariantFile(vcf_file)
+
+    for record in vcf_in.fetch(chromosome, start, end):
+        pos = record.pos
+        ref = record.ref
+        alts = record.alts  # This is a tuple of alternative alleles
+
+        for alt in alts:
+            variants.append((pos, ref, alt))
+
+    return variants
+
+
+def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     # Flatten coverage data into a single array
     positions = list(range(start, end))
     counts = coverage_data["+"]
@@ -160,9 +177,18 @@ def create_sashimi(coverage_data, junctions, start, end, annotations):
     
 
     # Create a subplot figure
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                        row_heights=[0.6, 0.4],
-                        vertical_spacing=0.02)
+
+    if variants:
+         row_count = 3
+         row_heights = [0.6, 0.1, 0.3]
+    else:
+         row_count = 2
+         row_heights = [0.6, 0.4]
+
+
+    fig = make_subplots(rows=row_count, cols=1, shared_xaxes=True, 
+                        row_heights=row_heights,
+                        vertical_spacing=0)
     # Create histogram
     bins = end-start
     hist = px.histogram(df, x="Position", y="ReadCount", nbins=bins, color_discrete_sequence=['grey'])
@@ -205,24 +231,68 @@ def create_sashimi(coverage_data, junctions, start, end, annotations):
                 y1=y_offset + 1,
                 line=dict(color="Black"),
                 fillcolor='Black',
-                label=dict(text=textinshape, font=dict(family="Courier New, monospace", size=12, color="White")),
-                row=2, col=1
+                label=dict(text=textinshape, font=dict(family="Courier New, monospace", size=10, color="White")),
+                row=row_count, col=1
             )
             fig.add_trace(go.Scatter(x=[(row["start"] + row["end"]) / 2],
                             y=[y_offset],
                             text=[transcript_id],
                             mode="text", hoverinfo='text',
                             showlegend=False, textfont=dict(color='rgba(0,0,0,0)')),
-                        row=2, col=1)
-        
+                        row=row_count, col=1)
         
         y_offset -= 3  # Move to the next level for the next transcript
+
+    if variants:
+        variant_positions = [v[0] for v in variants]
+        variant_labels = [f"{v[1]}>{v[2]}" for v in variants]
+
+        fig.add_trace(go.Scatter(x=variant_positions,
+                                y=[0.5] * len(variant_positions),
+                                mode='markers+text',
+                                marker_symbol='square',
+                                text=variant_labels,
+                                hoverinfo='x+text',
+                                textposition="top center",
+                                hovertemplate='pos: %{x:.0f}<br>variant: %{text}<extra></extra>',
+                                showlegend=False,
+                                marker=dict(color='orange', size=8)),
+                    row=2, col=1)
 
     # Update layout to make space for the annotations
     fig.update_layout(dict1=dict(template="plotly_white"))
     fig.update_layout(height=800, width=1200)
     fig.update_yaxes(fixedrange=True)
     fig.update_yaxes(showticklabels=False, row=2, col=1)
+
+    
+    fig.update_xaxes(
+        tickformat=".0f",
+        ticksuffix="", 
+    )
+
+    fig.update_layout(
+        title={
+            'text': f'{chr}:{start}-{end}',
+            'x': 0.5,
+            'xanchor': 'center', 
+            'font': {
+                'size': 14, 
+                'color': 'Grey' 
+            }
+        },
+    )
+    if variants:
+        fig.update_yaxes(showticklabels=False, row=3, col=1)
+        fig.update_xaxes(title_text="Genomic Position", row=3, col=1)
+        fig.update_yaxes(title_text="GTF", row=3, col=1)
+        fig.update_yaxes(title_text="Variants", row=2, col=1)
+    else:
+        fig.update_xaxes(title_text="Genomic Position", row=2, col=1)
+        fig.update_yaxes(title_text="GTF", row=2, col=1)
+    
+    fig.update_yaxes(title_text="Counts", row=1, col=1)
+
     return fig
 
 
@@ -235,7 +305,12 @@ if __name__ == "__main__":
 
         annotations = parse_gtf(args.gtf, chr, start, end)
 
-        fig = create_sashimi(cov, junct,start,end, annotations)
+        if args.vcf:
+             variants = parse_vcf(args.vcf, chr, start, end)
+        else:
+             variants = False
+
+        fig = create_sashimi(cov, junct, start, end, annotations, variants)
 
         if '.html' in args.output.lower():
              out_name = args.output
