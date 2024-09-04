@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 HTML interactive sashimi plots 
 modified from ggsashimi by guigolab, https://github.com/guigolab/ggsashimi
@@ -174,7 +176,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations):
     for (donor, acceptor), count in junctions["+"].items():
         height = np.log(count + 1) * 40  # Adjust height for better visibility
         width = (acceptor+donor)/2
-        text_height = height+15
+        text_height = height+5
         # Create points for Bezier curve
         bezier_x = np.linspace(donor, acceptor, 99)
         bezier_y = height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2)
@@ -191,6 +193,10 @@ def create_sashimi(coverage_data, junctions, start, end, annotations):
     
     for transcript_id, group in grouped_annotations:
         for _, row in group.iterrows():
+            if row["strand"] == '-':
+                textinshape = "<<<"
+            else:
+                textinshape = ">>>"
             fig.add_shape(
                 type="rect",
                 x0=row["start"],
@@ -199,6 +205,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations):
                 y1=y_offset + 1,
                 line=dict(color="Black"),
                 fillcolor='Black',
+                label=dict(text=textinshape, font=dict(family="Courier New, monospace", size=12, color="White")),
                 row=2, col=1
             )
             fig.add_trace(go.Scatter(x=[(row["start"] + row["end"]) / 2],
@@ -214,7 +221,6 @@ def create_sashimi(coverage_data, junctions, start, end, annotations):
     # Update layout to make space for the annotations
     fig.update_layout(dict1=dict(template="plotly_white"))
     fig.update_layout(height=800, width=1200)
-    fig.update_layout()
     fig.update_yaxes(fixedrange=True)
     fig.update_yaxes(showticklabels=False, row=2, col=1)
     return fig
