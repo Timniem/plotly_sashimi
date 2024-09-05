@@ -200,19 +200,21 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
 
     c = 0
     for (donor, acceptor), count in junctions["+"].items():
-        height = np.log(count + 1) * 40  # Adjust height for better visibility
-        width = (acceptor+donor)/2
-        text_height = height+5
+        height = np.log(count + 1) * 40 
+        mid = (acceptor+donor)/2
+        text_height = height+2
+        color = colorlist[c]
         # Create points for Bezier curve
         bezier_x = np.linspace(donor, acceptor, 99)
         bezier_y = height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2)
 
         fig.add_trace(go.Scatter(x=bezier_x, y=bezier_y, mode='lines', 
-                                 line=dict(color=colorlist[c]), showlegend=False, hoverinfo='none'),
+                                 line=dict(color=color, width=int(np.log(count/2))), showlegend=False, hovertemplate=f'pos: {donor}-{acceptor}, count: {count}', name=""),
                       row=1, col=1)
-        fig.add_trace(go.Scatter(x=[width], y=[text_height], mode='text', text=count, textfont=dict(color=colorlist[c],size=14), showlegend=False, hoverinfo='none'), row=1, col=1)
+        fig.add_annotation(x=mid, y=text_height, showarrow=False, text=count, font=dict(color=color,size=12), bgcolor="white", row=1, col=1)
+        
         c+=1
-    
+
     # Group annotations by transcript_id
     grouped_annotations = annotations.groupby("transcript_id")
     y_offset = -5 # Initial y offset for the annotation tracks
@@ -318,5 +320,6 @@ if __name__ == "__main__":
              out_name = f'{args.output}.html'
 
         fig.write_html(out_name)
+    
 
         
