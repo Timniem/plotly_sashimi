@@ -209,7 +209,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
         bezier_y = height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2)
 
         fig.add_trace(go.Scatter(x=bezier_x, y=bezier_y, mode='lines', 
-                                 line=dict(color=color, width=int(np.log(count/2))), showlegend=False, hovertemplate=f'pos: {donor}-{acceptor}, count: {count}', name=""),
+                                 line=dict(color=color, width=max(1,int(np.log(count)))), showlegend=False, hovertemplate=f'pos: {donor}-{acceptor}, count: {count}', name=""),
                       row=1, col=1)
         fig.add_annotation(x=mid, y=text_height, showarrow=False, text=count, font=dict(color=color,size=12), bgcolor="white", row=1, col=1)
         
