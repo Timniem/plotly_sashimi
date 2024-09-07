@@ -204,10 +204,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     hist = px.histogram(df, x="Position", y="ReadCount", nbins=bins, color_discrete_sequence=['Black'])
     hist.update_traces(hovertemplate='',hoverinfo='none')
     fig.add_trace(hist.data[0],row=1, col=1)
-
-
     colorlist = px.colors.cyclical.Phase
-
     c = 0
     sign = 1
     max_junction_height = 0
@@ -217,8 +214,10 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
         text_height = height+2
         color = colorlist[c]
         # Create points for Bezier curve
-        bezier_x = np.linspace(donor, acceptor, 99)
-        bezier_y = height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2)
+        bezier_x = np.linspace(donor, acceptor, 33)
+        bezier_y = (height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2))
+        steeper = 1 - ((bezier_x - mid) * (mid - bezier_x) / (acceptor - donor) ** 2) * 4
+        bezier_y =  bezier_y * steeper
 
         fig.add_trace(go.Scatter(x=bezier_x, y=sign * bezier_y, mode='lines', 
                                  line=dict(color=color, width=max(1,int(np.log(count)))), showlegend=False, hovertemplate=f'pos: {donor}-{acceptor}, count: {count}', name=""),
