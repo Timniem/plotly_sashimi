@@ -183,11 +183,8 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     positions = list(range(start, end))
     counts = coverage_data["+"]
 
-    # Create a DataFrame for plotting
     df = pd.DataFrame({"Position": positions, "ReadCount": counts})
     
-
-    # Create a subplot figure
 
     if variants:
          row_count = 3
@@ -210,6 +207,8 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     colorlist = px.colors.cyclical.Phase
 
     c = 0
+    sign = 1
+    max_junction_height = 0
     for (donor, acceptor), count in junctions["+"].items():
         height = np.log(count + 1) * 40
         mid = (acceptor+donor)/2
@@ -219,12 +218,13 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
         bezier_x = np.linspace(donor, acceptor, 99)
         bezier_y = height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2)
 
-        fig.add_trace(go.Scatter(x=bezier_x, y=bezier_y, mode='lines', 
+        fig.add_trace(go.Scatter(x=bezier_x, y=sign * bezier_y, mode='lines', 
                                  line=dict(color=color, width=max(1,int(np.log(count)))), showlegend=False, hovertemplate=f'pos: {donor}-{acceptor}, count: {count}', name=""),
                       row=1, col=1)
-        fig.add_annotation(x=mid, y=text_height, showarrow=False, text=count, font=dict(color=color,size=12), bgcolor="white", row=1, col=1)
-        
+        fig.add_annotation(x=mid, y=sign * text_height, showarrow=False, text=count, font=dict(color=color,size=12), bgcolor="white", row=1, col=1)
+        max_junction_height = max(max_junction_height,height)
         c+=1
+        sign *= -1
 
     # Group annotations by transcript_id
     grouped_annotations = annotations.groupby("transcript_id")
@@ -276,7 +276,11 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
 
     # Update layout to make space for the annotations
     fig.update_layout(dict1=dict(template="plotly_white"))
-    fig.update_layout(height=800, width=1200)
+    #fig.update_layout(height=800, width=1200)
+
+    hist_y_ticks = np.linspace(-max_junction_height,df["ReadCount"].max(),num=5, dtype=int)
+    hist_y_ticks = [int(np.ceil(num / 100.0)) * 100 for num in hist_y_ticks]
+    fig.update_yaxes({'tickvals':hist_y_ticks,"ticktext":[t if t>=0 else '' for t in hist_y_ticks]},row=1,col=1)
     fig.update_yaxes(fixedrange=True)
     fig.update_yaxes(showticklabels=False, row=2, col=1)
 
