@@ -122,6 +122,8 @@ def read_bam(file, chr, start, end , strand):
 
 def parse_gtf(gtf_file, chromosome, start, end):
     annotations = []
+    start -= 10000
+    end += 10000
     
     with open(gtf_file, 'r') as f:
         for line in f:
@@ -240,6 +242,10 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
         for _, row in group.iterrows():
             min_transcript = min(min_transcript, row['end'])
             max_transcript = max(max_transcript, row['end'])
+            if row["end"] < start:
+                 continue
+            if row["end"] > end:
+                 continue
             fig.add_shape(
                 type="rect",
                 x0=row["start"],
@@ -257,6 +263,10 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
                             showlegend=False, textfont=dict(color='rgba(0,0,0,0)')),
                         row=row_count, col=1)
         
+        if min_transcript < start:
+            min_transcript = start
+        if max_transcript > end:
+             max_transcript = end
         x_line = np.arange(min_transcript, max_transcript,step=100)
         fig.add_trace(go.Scatter(x=x_line, y=[y_offset-.5]*len(x_line),
                                  mode='lines+markers', marker_line_color='black',
