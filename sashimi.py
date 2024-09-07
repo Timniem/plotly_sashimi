@@ -262,16 +262,16 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
         variant_colors = [get_variant_color(v[2]) for v in variants]
 
         fig.add_trace(go.Scatter(x=variant_positions,
-                                y=[0.5] * len(variant_positions),
-                                mode='markers+text',
-                                marker_symbol='square',
-                                text=variant_labels,
-                                hoverinfo='x+text',
-                                textposition="top center",
-                                hovertemplate='pos: %{x:.0f}<br>variant: %{text}<extra></extra>',
-                                showlegend=False,
-                                textfont=dict(color='rgba(0,0,0,0)'),
-                                marker=dict(color=variant_colors, size=8)),
+                        y=[0.5] * len(variant_positions),
+                        mode='markers+text',
+                        marker_symbol='square',
+                        text=variant_labels,
+                        hoverinfo='x+text',
+                        textposition="top center",
+                        hovertemplate='pos: %{x:.0f}<br>variant: %{text}<extra></extra>',
+                        showlegend=False,
+                        textfont=dict(color='rgba(0,0,0,0)'),
+                        marker=dict(color=variant_colors, size=8)),
                     row=2, col=1)
 
     # Update layout to make space for the annotations
