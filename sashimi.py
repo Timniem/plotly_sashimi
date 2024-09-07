@@ -166,6 +166,17 @@ def parse_vcf(vcf_file, chromosome, start, end):
 
     return variants
 
+def get_variant_color(alt):
+    match alt:
+        case 'A':
+            return '#43A5BE'
+        case 'G':
+            return '#4FB06D'
+        case 'T':
+            return '#F5C26B'
+        case 'C':
+            return '#F07857'
+
 
 def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     # Flatten coverage data into a single array
@@ -200,7 +211,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
 
     c = 0
     for (donor, acceptor), count in junctions["+"].items():
-        height = np.log(count + 1) * 40 
+        height = np.log(count + 1) * 40
         mid = (acceptor+donor)/2
         text_height = height+2
         color = colorlist[c]
@@ -248,6 +259,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     if variants:
         variant_positions = [v[0] for v in variants]
         variant_labels = [f"{v[1]}>{v[2]}" for v in variants]
+        variant_colors = [get_variant_color(v[2]) for v in variants]
 
         fig.add_trace(go.Scatter(x=variant_positions,
                                 y=[0.5] * len(variant_positions),
@@ -258,7 +270,8 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
                                 textposition="top center",
                                 hovertemplate='pos: %{x:.0f}<br>variant: %{text}<extra></extra>',
                                 showlegend=False,
-                                marker=dict(color='orange', size=8)),
+                                textfont=dict(color='rgba(0,0,0,0)'),
+                                marker=dict(color=variant_colors, size=8)),
                     row=2, col=1)
 
     # Update layout to make space for the annotations
