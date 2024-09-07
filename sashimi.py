@@ -257,7 +257,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
                             showlegend=False, textfont=dict(color='rgba(0,0,0,0)')),
                         row=row_count, col=1)
         
-        x_line = np.linspace(min_transcript, max_transcript, num=100)
+        x_line = np.arange(min_transcript, max_transcript,step=100)
         fig.add_trace(go.Scatter(x=x_line, y=[y_offset-.5]*len(x_line),
                                  mode='lines+markers', marker_line_color='black',
                                   showlegend=False, marker_color="black", marker_symbol=marker,
