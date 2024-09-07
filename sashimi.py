@@ -214,7 +214,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
         text_height = height+2
         color = colorlist[c]
         # Create points for Bezier curve
-        bezier_x = np.linspace(donor, acceptor, 33)
+        bezier_x = np.linspace(donor, acceptor, 99)
         bezier_y = (height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2))
         steeper = 1 - ((bezier_x - mid) * (mid - bezier_x) / (acceptor - donor) ** 2) * 4
         bezier_y =  bezier_y * steeper
