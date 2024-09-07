@@ -199,7 +199,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
                         vertical_spacing=0)
     # Create histogram
     bins = end-start
-    hist = px.histogram(df, x="Position", y="ReadCount", nbins=bins, color_discrete_sequence=['grey'])
+    hist = px.histogram(df, x="Position", y="ReadCount", nbins=bins, color_discrete_sequence=['Black'])
     hist.update_traces(hovertemplate='',hoverinfo='none')
     fig.add_trace(hist.data[0],row=1, col=1)
 
@@ -229,22 +229,25 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
     # Group annotations by transcript_id
     grouped_annotations = annotations.groupby("transcript_id")
     y_offset = -5 # Initial y offset for the annotation tracks
-    
+
     for transcript_id, group in grouped_annotations:
+        if group['strand'].iloc[0] == '-':
+             marker = 'y-left'
+        else:
+             marker = 'y-right'
+        min_transcript = np.inf
+        max_transcript = 0
         for _, row in group.iterrows():
-            if row["strand"] == '-':
-                textinshape = "<<<"
-            else:
-                textinshape = ">>>"
+            min_transcript = min(min_transcript, row['end'])
+            max_transcript = max(max_transcript, row['end'])
             fig.add_shape(
                 type="rect",
                 x0=row["start"],
                 x1=row["end"],
                 y0=y_offset,  # Position each transcript at a different level
-                y1=y_offset + 1,
+                y1=y_offset - 1,
                 line=dict(color="Black"),
                 fillcolor='Black',
-                label=dict(text=textinshape, font=dict(family="Courier New, monospace", size=10, color="White")),
                 row=row_count, col=1
             )
             fig.add_trace(go.Scatter(x=[(row["start"] + row["end"]) / 2],
@@ -254,6 +257,11 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
                             showlegend=False, textfont=dict(color='rgba(0,0,0,0)')),
                         row=row_count, col=1)
         
+        x_line = np.linspace(min_transcript, max_transcript, num=100)
+        fig.add_trace(go.Scatter(x=x_line, y=[y_offset-.5]*len(x_line),
+                                 mode='lines+markers', marker_line_color='black',
+                                  showlegend=False, marker_color="black", marker_symbol=marker,
+                                  marker_size=5,marker_line_width=0.5, hovertemplate='',hoverinfo='none'), row=row_count,col=1)
         y_offset -= 3  # Move to the next level for the next transcript
 
     if variants:
