@@ -4,7 +4,7 @@
 HTML interactive sashimi plots 
 modified from ggsashimi by guigolab, https://github.com/guigolab/ggsashimi
 """
-import re, sys
+import re, os, subprocess
 from argparse import ArgumentParser
 
 import numpy as np
@@ -20,9 +20,15 @@ def parse_arguments():
         argparser.add_argument("-c","--coordinates", type=str, required=True)
         argparser.add_argument("-b", "--bam", type=str, required=True)
         argparser.add_argument("-g", "--gtf", type=str, required=True)
-        argparser.add_argument("-o","--output", default="output", type=str)
+        argparser.add_argument("-o","--output", default="sashimi_output", type=str)
         argparser.add_argument("-s", "--strand", default="NONE", type=str)
+        #Optional variants track arguments
         argparser.add_argument("-v", "--vcf", default=False, type=str)
+        #Optional spliceAI arguments
+        argparser.add_argument("-sa", "--spliceai", default=False, type=bool)
+        argparser.add_argument("-gb", "--genomebuild", default="grch37",choices=["grch37","grch38"])
+        argparser.add_argument("-t", "--temp", default="./temp/", type=str )
+        argparser.add_argument("-r", "--reference", type=str)
 
         return argparser.parse_args()
 
@@ -155,18 +161,28 @@ def parse_gtf(gtf_file, chromosome, start, end):
 
 def parse_vcf(vcf_file, chromosome, start, end):
     variants = []
+    splice_ai = []
     # Open the VCF file with pysam (handles both gzipped and uncompressed files)
     vcf_in = pysam.VariantFile(vcf_file)
-
-    for record in vcf_in.fetch(chromosome, start, end):
+    
+    for record in vcf_in:
         pos = record.pos
         ref = record.ref
         alts = record.alts  # This is a tuple of alternative alleles
-
+        if 'SpliceAI' in record.info:
+                scores = record.info['SpliceAI'][0].split('|')
+                #tuple with bases from alt-position and delta scores
+                scores_dict = {"AG":(int(scores[6]),float(scores[2])),
+                               "AL":(int(scores[7]),float(scores[3])),
+                               "DG":(int(scores[8]),float(scores[4])),
+                               "DL":(int(scores[9]),float(scores[5]))
+                                }
+                splice_ai.append((record.pos, scores_dict))
+                
         for alt in alts:
             variants.append((pos, ref, alt))
 
-    return variants
+    return variants, splice_ai
 
 def get_variant_color(alt):
     match alt:
@@ -179,8 +195,41 @@ def get_variant_color(alt):
         case 'C':
             return '#F07857'
 
+def subset_vcf(tmp_dir, input_vcf, chrom, start, end):
+    """Subset the input VCF to a specific genomic range."""
 
-def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
+    tmp_path = os.path.join(tmp_dir, "intermediates")
+    output_name = f'{chrom}-{start}-{end}_{os.path.basename(input_vcf)}'
+    output_vcf = f'{os.path.join(tmp_path, os.path.splitext(output_name)[0])}'
+
+    if not os.path.exists(tmp_path):
+        os.makedirs(tmp_path)
+    with pysam.VariantFile(input_vcf) as vcf_in, open(output_vcf, "w") as vcf_out:
+        # Copy header
+        vcf_out.write(str(vcf_in.header))
+        # Filter records by region
+        for record in vcf_in.fetch(chrom, start, end):
+            vcf_out.write(str(record))
+
+    print(f'Subset VCF {chrom}:{start}-{end} written to {output_vcf}')
+    return output_vcf
+
+def annotate_with_spliceai(input_vcf, reference_genome, annotation):
+    spliceai_output_name = f'{os.path.splitext(input_vcf)[0]}_spliceai.vcf'
+    """Annotate variants using SpliceAI."""
+    cmd = [
+        "spliceai",
+        "-I", input_vcf,
+        "-O", spliceai_output_name,
+        "-R", reference_genome,  # Reference genome file path
+        "-A", annotation  # Output format can be vcf or tsv
+    ]
+    subprocess.run(cmd)
+    print(f"SpliceAI annotated VCF written to {spliceai_output_name}")
+    return spliceai_output_name
+
+
+def create_sashimi(coverage_data, junctions, start, end, annotations, variants, spliceai):
     # Flatten coverage data into a single array
     positions = list(range(start, end))
     counts = coverage_data["+"]
@@ -290,6 +339,35 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants):
                         textfont=dict(color='rgba(0,0,0,0)'),
                         marker=dict(color=variant_colors, size=8)),
                     row=2, col=1)
+        if spliceai:
+            spliceai_positions = [s[0] for s in spliceai]
+            spliceai_scores = [s[1] for s in spliceai]
+            for position, score_dict in zip(spliceai_positions, spliceai_scores):
+                for metric in score_dict.keys():
+                    if score_dict[metric][1] > 0:
+                        if "A" in metric:
+                             color = 'orange'
+                             ypos = 1
+                        else:
+                             ypos = 1.2
+                             color = 'blue'
+                        if "L" in metric:
+                             symbol = "triangle-down"
+                        else:
+                             symbol = "triangle-up"
+                        fig.add_trace(go.Scatter(x=[position + score_dict[metric][0]],
+                                    y=[ypos],
+                                    mode='markers+text',
+                                    marker_symbol=symbol,
+                                    text=metric,
+                                    hoverinfo='x+text',
+                                    textposition="top center",
+                                    hovertemplate=f'SpliceAI - pos: {position + score_dict[metric][0]} - {metric}: {score_dict[metric][1]}',
+                                    showlegend=False,
+                                    textfont=dict(color='rgba(0,0,0,0)'),
+                                    name="",
+                                    marker=dict(color=color, size=8)),
+                                row=2, col=1)
 
     # Update layout to make space for the annotations
     fig.update_layout(dict1=dict(template="plotly_white"))
@@ -342,11 +420,16 @@ if __name__ == "__main__":
         annotations = parse_gtf(args.gtf, chr, start, end)
 
         if args.vcf:
-             variants = parse_vcf(args.vcf, chr, start, end)
+             subset_vcf_name = subset_vcf(args.temp, args.vcf, chr, start, end)
+             if args.spliceai:
+                spliceai_vcf_name = annotate_with_spliceai(subset_vcf_name, args.reference, args.genomebuild)
+                variants, spliceai = parse_vcf(spliceai_vcf_name, chr, start, end)
+             else:
+                variants, spliceai = parse_vcf(subset_vcf_name, chr, start, end)
         else:
-             variants = False
+             variants, spliceai = False, False
 
-        fig = create_sashimi(cov, junct, start, end, annotations, variants)
+        fig = create_sashimi(cov, junct, start, end, annotations, variants, spliceai)
 
         if '.html' in args.output.lower():
              out_name = args.output
