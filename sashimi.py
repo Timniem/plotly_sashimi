@@ -339,7 +339,12 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
                         textfont=dict(color='rgba(0,0,0,0)'),
                         marker=dict(color=variant_colors, size=8)),
                     row=2, col=1)
+        fig.add_hline(y=0.5, line_color="grey",opacity=0.2, row=2, col=1)
+        
         if spliceai:
+            fig.add_hline(y=3, line_color="grey", line_dash="dot", opacity=0.2, row=2, col=1)
+            fig.add_hline(y=5, line_color="grey", line_dash="dot", annotation_text="SpliceAI prediction", 
+                            annotation_position="bottom right", opacity=0.2, row=2, col=1)
             spliceai_positions = [s[0] for s in spliceai]
             spliceai_scores = [s[1] for s in spliceai]
             for position, score_dict in zip(spliceai_positions, spliceai_scores):
@@ -347,27 +352,33 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
                     if score_dict[metric][1] > 0:
                         if "A" in metric:
                              color = 'orange'
-                             ypos = 1
+                             ypos = 3
                         else:
-                             ypos = 1.2
+                             ypos = 5
                              color = 'blue'
                         if "L" in metric:
-                             symbol = "triangle-down"
+                             ydir = - score_dict[metric][1] * 2
                         else:
-                             symbol = "triangle-up"
-                        fig.add_trace(go.Scatter(x=[position + score_dict[metric][0]],
-                                    y=[ypos],
-                                    mode='markers+text',
-                                    marker_symbol=symbol,
-                                    text=metric,
-                                    hoverinfo='x+text',
-                                    textposition="top center",
-                                    hovertemplate=f'SpliceAI - pos: {position + score_dict[metric][0]} - {metric}: {score_dict[metric][1]}',
+                             ydir = + score_dict[metric][1] * 2
+                        fig.add_shape(type='rect',
+                                    x0=position + score_dict[metric][0] - .5,
+                                    x1=position + score_dict[metric][0] + .5,
+                                    y0=ypos,  # Position each transcript at a different level
+                                    y1=ypos+ydir,
                                     showlegend=False,
-                                    textfont=dict(color='rgba(0,0,0,0)'),
-                                    name="",
-                                    marker=dict(color=color, size=8)),
-                                row=2, col=1)
+                                    fillcolor=color,
+                                    line=dict(color=color, width=4),
+                                    row=2, col=1)
+                        fig.add_trace(go.Scatter(x=[position + score_dict[metric][0]],
+                                        y=[ypos],
+                                        text=metric,
+                                        mode='markers+text',
+                                        textposition="top center",
+                                        hovertemplate=f'SpliceAI - pos: {position + score_dict[metric][0]} - {metric}: {score_dict[metric][1]}',
+                                        name="",
+                                        marker=dict(color='rgba(0,0,0,0)'),
+                                        showlegend=False, textfont=dict(color='rgba(0,0,0,0)')),
+                                        row=2, col=1)
 
     # Update layout to make space for the annotations
     fig.update_layout(dict1=dict(template="plotly_white"))
