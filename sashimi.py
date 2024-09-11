@@ -171,7 +171,6 @@ def parse_vcf(vcf_file):
         alts = record.alts  # This is a tuple of alternative alleles
         effect = False
         if 'SpliceAI' in record.info:
-                effect = True
                 scores = record.info['SpliceAI'][0].split('|')
                 #tuple with bases from alt-position and delta scores
                 scores_dict = {"AG":(int(scores[6]),float(scores[2])),
@@ -179,6 +178,9 @@ def parse_vcf(vcf_file):
                                "DG":(int(scores[8]),float(scores[4])),
                                "DL":(int(scores[9]),float(scores[5]))
                                 }
+                for score in scores[2:6]:
+                     if float(score) > 0:
+                          effect = True
                 splice_ai.append((record.pos, scores_dict))
                 
         for alt in alts:
