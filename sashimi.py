@@ -159,7 +159,7 @@ def parse_gtf(gtf_file, chromosome, start, end):
     
     return pd.DataFrame(annotations)
 
-def parse_vcf(vcf_file, chromosome, start, end):
+def parse_vcf(vcf_file):
     variants = []
     splice_ai = []
     # Open the VCF file with pysam (handles both gzipped and uncompressed files)
@@ -169,7 +169,9 @@ def parse_vcf(vcf_file, chromosome, start, end):
         pos = record.pos
         ref = record.ref
         alts = record.alts  # This is a tuple of alternative alleles
+        effect = False
         if 'SpliceAI' in record.info:
+                effect = True
                 scores = record.info['SpliceAI'][0].split('|')
                 #tuple with bases from alt-position and delta scores
                 scores_dict = {"AG":(int(scores[6]),float(scores[2])),
@@ -180,20 +182,20 @@ def parse_vcf(vcf_file, chromosome, start, end):
                 splice_ai.append((record.pos, scores_dict))
                 
         for alt in alts:
-            variants.append((pos, ref, alt))
+            variants.append((pos, ref, alt, effect))
 
     return variants, splice_ai
 
-def get_variant_color(alt):
-    match alt:
-        case 'A':
-            return '#43A5BE'
-        case 'G':
-            return '#4FB06D'
-        case 'T':
-            return '#F5C26B'
-        case 'C':
-            return '#F07857'
+#def get_variant_color(alt):
+#    match alt:
+#        case 'A':
+#            return '#43A5BE'
+#        case 'G':
+#            return '#4FB06D'
+#        case 'T':
+#            return '#F5C26B'
+#        case 'C':
+#            return '#F07857'
 
 def subset_vcf(tmp_dir, input_vcf, chrom, start, end):
     """Subset the input VCF to a specific genomic range."""
@@ -325,8 +327,8 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
     if variants:
         variant_positions = [v[0] for v in variants]
         variant_labels = [f"{v[1]}>{v[2]}" for v in variants]
-        variant_colors = [get_variant_color(v[2]) for v in variants]
-
+        variant_colors = ['red' if v[3] else 'grey' for v in variants]
+        fig.add_hline(y=0.5, line_color="grey",opacity=0.2, row=2, col=1)
         fig.add_trace(go.Scatter(x=variant_positions,
                         y=[0.5] * len(variant_positions),
                         mode='markers+text',
@@ -339,11 +341,10 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
                         textfont=dict(color='rgba(0,0,0,0)'),
                         marker=dict(color=variant_colors, size=8)),
                     row=2, col=1)
-        fig.add_hline(y=0.5, line_color="grey",opacity=0.2, row=2, col=1)
         
         if spliceai:
-            fig.add_hline(y=3, line_color="grey", line_dash="dot", opacity=0.2, row=2, col=1)
-            fig.add_hline(y=5, line_color="grey", line_dash="dot", annotation_text="SpliceAI prediction", 
+            fig.add_hline(y=3, line_color="orange", line_dash="dot", opacity=0.2, row=2, col=1)
+            fig.add_hline(y=6, line_color="blue", line_dash="dot", annotation_text="SpliceAI prediction", 
                             annotation_position="bottom right", opacity=0.2, row=2, col=1)
             spliceai_positions = [s[0] for s in spliceai]
             spliceai_scores = [s[1] for s in spliceai]
@@ -354,7 +355,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
                              color = 'orange'
                              ypos = 3
                         else:
-                             ypos = 5
+                             ypos = 6
                              color = 'blue'
                         if "L" in metric:
                              ydir = - score_dict[metric][1] * 2
@@ -434,9 +435,9 @@ if __name__ == "__main__":
              subset_vcf_name = subset_vcf(args.temp, args.vcf, chr, start, end)
              if args.spliceai:
                 spliceai_vcf_name = annotate_with_spliceai(subset_vcf_name, args.reference, args.genomebuild)
-                variants, spliceai = parse_vcf(spliceai_vcf_name, chr, start, end)
+                variants, spliceai = parse_vcf(spliceai_vcf_name)
              else:
-                variants, spliceai = parse_vcf(subset_vcf_name, chr, start, end)
+                variants, spliceai = parse_vcf(subset_vcf_name)
         else:
              variants, spliceai = False, False
 
