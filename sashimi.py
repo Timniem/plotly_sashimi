@@ -3,6 +3,7 @@
 """
 HTML interactive sashimi plots 
 modified from ggsashimi by guigolab, https://github.com/guigolab/ggsashimi
+Author: T. Niemeijer
 """
 import re, os, subprocess
 from argparse import ArgumentParser
@@ -179,7 +180,7 @@ def parse_vcf(vcf_file):
                                "DL":(int(scores[9]),float(scores[5]))
                                 }
                 for score in scores[2:6]:
-                     if float(score) > 0:
+                     if float(score) > 0.2: #spliceai cutoff
                           effect = True
                 splice_ai.append((record.pos, scores_dict))
                 
@@ -352,7 +353,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
             spliceai_scores = [s[1] for s in spliceai]
             for position, score_dict in zip(spliceai_positions, spliceai_scores):
                 for metric in score_dict.keys():
-                    if score_dict[metric][1] > 0:
+                    if score_dict[metric][1] > 0.2: #spliceai cutoff
                         if "A" in metric:
                              color = 'orange'
                              ypos = 3
