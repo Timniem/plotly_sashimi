@@ -7,6 +7,7 @@ Author: T. Niemeijer
 """
 import re, os, subprocess
 from argparse import ArgumentParser
+import itertools
 
 import numpy as np
 import plotly.express as px
@@ -259,6 +260,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
     hist.update_traces(hovertemplate='',hoverinfo='none')
     fig.add_trace(hist.data[0],row=1, col=1)
     colorlist = px.colors.cyclical.Phase
+    color_generator = itertools.cycle(colorlist)
     c = 0
     sign = 1
     max_junction_height = 0
@@ -266,7 +268,7 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
         height = np.log(count + 1) * 40
         mid = (acceptor+donor)/2
         text_height = height+2
-        color = colorlist[c]
+        color = next(color_generator)
         # Create points for Bezier curve
         bezier_x = np.linspace(donor, acceptor, 99)
         bezier_y = (height * 4 * (bezier_x - donor) * (acceptor - bezier_x) / ((acceptor - donor) ** 2))
