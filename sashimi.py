@@ -190,16 +190,6 @@ def parse_vcf(vcf_file):
 
     return variants, splice_ai
 
-#def get_variant_color(alt):
-#    match alt:
-#        case 'A':
-#            return '#43A5BE'
-#        case 'G':
-#            return '#4FB06D'
-#        case 'T':
-#            return '#F5C26B'
-#        case 'C':
-#            return '#F07857'
 
 def subset_vcf(tmp_dir, input_vcf, chrom, start, end):
     """Subset the input VCF to a specific genomic range."""
@@ -235,7 +225,7 @@ def annotate_with_spliceai(input_vcf, reference_genome, annotation):
     return spliceai_output_name
 
 
-def create_sashimi(coverage_data, junctions, start, end, annotations, variants, spliceai):
+def create_sashimi(coverage_data, junctions, chrom, start, end, annotations, variants, spliceai):
     # Flatten coverage data into a single array
     positions = list(range(start, end))
     counts = coverage_data["+"]
@@ -387,24 +377,16 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
                                         row=2, col=1)
 
     # Update layout to make space for the annotations
-    fig.update_layout(dict1=dict(template="plotly_white"))
+    
     #fig.update_layout(height=800, width=1200)
 
     hist_y_ticks = np.linspace(-max_junction_height,df["ReadCount"].max(),num=5, dtype=int)
     hist_y_ticks = [int(np.ceil(num / 100.0)) * 100 for num in hist_y_ticks]
     fig.update_yaxes({'tickvals':hist_y_ticks,"ticktext":[t if t>=0 else '' for t in hist_y_ticks]},row=1,col=1)
-    fig.update_yaxes(fixedrange=True)
-    fig.update_yaxes(showticklabels=False, row=2, col=1)
-
-    
-    fig.update_xaxes(
-        tickformat=".0f",
-        ticksuffix="", 
-    )
-
+    fig.update_yaxes(title_text="Counts", row=1, col=1)
     fig.update_layout(
         title={
-            'text': f'{chr}:{start}-{end}',
+            'text': f'{chrom}:{start}-{end}',
             'x': 0.5,
             'xanchor': 'center', 
             'font': {
@@ -413,7 +395,160 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
             }
         },
     )
-    if variants:
+
+    return fig, row_count
+
+
+def combine_multiple_plots(locations, fig_rowcount):
+    
+    figures = [fig[0] for fig in fig_rowcount]
+    row_count = fig_rowcount[0][1]
+
+
+    if row_count == 3:
+         row_heights = [0.6, 0.1, 0.3]
+    else:
+         row_heights = [0.6, 0.4]
+
+
+    combined_fig  = make_subplots(rows=row_count, cols=1, shared_xaxes=True, 
+                        row_heights=row_heights,
+                        vertical_spacing=0)
+    
+    for idx, fig in enumerate(figures):
+
+        # Copy axis settings from the original figure
+        combined_fig.update_xaxes(
+            tickvals=fig.layout.xaxis.tickvals,
+            ticktext=fig.layout.xaxis.ticktext,
+            row=idx+1, col=1,
+        )
+        combined_fig.update_yaxes(
+            tickvals=fig.layout.yaxis.tickvals,
+            ticktext=fig.layout.yaxis.ticktext,
+            row=idx+1, col=1,
+        )
+
+    # Add all traces to the combined figure, making them initially invisible
+    for fig in figures:
+        for trace in fig.data:
+            combined_fig.add_trace(trace)
+            combined_fig.data[-1].visible = False
+
+
+    # Make the traces from the first figure visible
+    for trace in range(len(figures[0].data)):
+        combined_fig.data[trace].visible = True
+
+    # Initial layout settings for the first plot
+    combined_fig.update_layout(
+        title=None,
+        xaxis_title=figures[0].layout.xaxis.title.text,
+        yaxis_title=figures[0].layout.yaxis.title.text,
+        shapes=figures[0].layout.shapes,
+        annotations=figures[0].layout.annotations
+    )
+
+    # Create the dropdown menu
+    dropdown_buttons = []
+
+    for idx, loc in enumerate(locations):
+        # Create a visibility list where all traces are initially invisible
+        visibility = [False] * len(combined_fig.data)
+        # Set the visibility for the selected figure's traces to True
+        start_index = idx * len(figures[0].data)  # Start index for current figure
+        for j in range(len(figures[idx].data)):
+            visibility[start_index + j] = True
+
+        # Define layout updates for the selected figure
+        layout_update = {
+            "title": None,
+            "xaxis_title": figures[idx].layout.xaxis.title.text,
+            "yaxis_title": figures[idx].layout.yaxis.title.text,
+            "shapes": figures[idx].layout.shapes,
+            "annotations": figures[idx].layout.annotations,
+            "xaxis":figures[idx].layout.xaxis,
+            "yaxis":figures[idx].layout.yaxis
+        }
+
+        layout_update['xaxis']['fixedrange'] = True
+        layout_update['yaxis']['fixedrange'] = True
+
+        # Create a dropdown button for each location
+        button = dict(
+            label=loc,
+            method="update",
+            args=[
+                {"visible": visibility},
+                layout_update
+            ]
+        )
+        dropdown_buttons.append(button)
+
+    # Add the dropdown menu to the layout
+    combined_fig.update_layout(
+        updatemenus=[{
+            "buttons": dropdown_buttons,
+            "direction": "down",
+            "showactive": True,
+            "x": 0.5,  # Horizontal position (0.5 centers it)
+            "y": 1.15,  # Vertical position (1.15 places it above the figure)
+            "xanchor": "center",  # Anchor the dropdown at the center horizontally
+            "yanchor": "top"  # Anchor the dropdown at the top vertically
+        }]
+    )
+
+    return (combined_fig, row_count)
+
+
+def read_coordinates_file(file):
+    coordinates = []
+    with open(file, 'r') as coor_file:
+        for coordinate in coor_file:
+            coordinates.append(coordinate.strip())
+    return coordinates
+
+def create_plot(args, coordinates):
+
+    chrom, start, end = parse_coordinates(coordinates)
+    cov, junct = read_bam(args.bam, chrom, start, end, args.strand)
+    annotations = parse_gtf(args.gtf, chrom, start, end)
+
+    if args.vcf:
+             subset_vcf_name = subset_vcf(args.temp, args.vcf, chrom, start, end)
+             if args.spliceai:
+                spliceai_vcf_name = annotate_with_spliceai(subset_vcf_name, args.reference, args.genomebuild)
+                variants, spliceai = parse_vcf(spliceai_vcf_name)
+             else:
+                variants, spliceai = parse_vcf(subset_vcf_name)
+    else:
+        variants, spliceai = False, False
+
+    fig, row_count = create_sashimi(cov, junct, chrom, start, end, annotations, variants, spliceai)
+
+    return (fig, row_count)
+
+if __name__ == "__main__":
+
+    args = parse_arguments()
+
+    if os.path.exists(args.coordinates):
+        figs = []
+        coordinates = read_coordinates_file(args.coordinates)
+        for coordinate in coordinates:
+            figs.append(create_plot(args, coordinate))
+        (fig, row_count) = combine_multiple_plots(coordinates, figs)
+    else:
+        (fig, row_count) = create_plot(args, args.coordinates)
+    
+    if '.html' in args.output.lower():
+            out_name = args.output
+    else:
+            out_name = f'{args.output}.html'
+
+
+    fig.update_layout(dict1=dict(template="plotly_white"))
+    if row_count == 3:
         fig.update_yaxes(showticklabels=False, row=3, col=1)
         fig.update_xaxes(title_text="Genomic Position", row=3, col=1)
         fig.update_yaxes(title_text="GTF", row=3, col=1)
@@ -422,38 +557,19 @@ def create_sashimi(coverage_data, junctions, start, end, annotations, variants, 
         fig.update_xaxes(title_text="Genomic Position", row=2, col=1)
         fig.update_yaxes(title_text="GTF", row=2, col=1)
     
-    fig.update_yaxes(title_text="Counts", row=1, col=1)
+    fig.update_yaxes(fixedrange=True)
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(showticklabels=False, row=2, col=1)
 
-    return fig
+    fig.update_xaxes(
+        tickformat=".0f",
+        ticksuffix="", 
+    )
 
+    config = {'displayModeBar': False}
 
-if __name__ == "__main__":
-        
-        args = parse_arguments()
-        chr, start, end = parse_coordinates(args.coordinates)
-
-        cov, junct = read_bam(args.bam, chr, start, end, args.strand)
-
-        annotations = parse_gtf(args.gtf, chr, start, end)
-
-        if args.vcf:
-             subset_vcf_name = subset_vcf(args.temp, args.vcf, chr, start, end)
-             if args.spliceai:
-                spliceai_vcf_name = annotate_with_spliceai(subset_vcf_name, args.reference, args.genomebuild)
-                variants, spliceai = parse_vcf(spliceai_vcf_name)
-             else:
-                variants, spliceai = parse_vcf(subset_vcf_name)
-        else:
-             variants, spliceai = False, False
-
-        fig = create_sashimi(cov, junct, start, end, annotations, variants, spliceai)
-
-        if '.html' in args.output.lower():
-             out_name = args.output
-        else:
-             out_name = f'{args.output}.html'
-
-        fig.write_html(out_name)
+    
+    fig.write_html(out_name, config=config)
     
 
         
