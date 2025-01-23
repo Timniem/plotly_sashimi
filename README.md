@@ -7,11 +7,11 @@
   
   options:
     -h, --help            show this help message and exit
-    -c COORDINATES, --coordinates COORDINATES
-    -b BAM, --bam BAM
-    -g GTF, --gtf GTF
+    -c COORDINATES, --coordinates COORDINATES as: "chr:start-end"
+    -b BAM, --bam BAM file
+    -g GTF, --gtf GTF file
     -o OUTPUT, --output OUTPUT
-    -s STRAND, --strand STRAND
+    -s STRAND, --strand STRAND {default= unstranded}
     -v VCF, --vcf VCF
     -sa SPLICEAI, --spliceai SPLICEAI {False, True}
     -gb {grch37,grch38}, --genomebuild {grch37, grch38} // needed for SpliceAI
