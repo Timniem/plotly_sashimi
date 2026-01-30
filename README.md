@@ -1,4 +1,7 @@
-<code> 
+
+CLI plotly sashimi
+
+```
   
   usage: sashimi.py [-h] -c COORDINATES -b BAM -g GTF [-o OUTPUT] [-s STRAND] [-v VCF] [-sa SPLICEAI] [-gb {grch37,grch38}] [-t TEMP]
                     [-r REFERENCE]
@@ -18,4 +21,4 @@
     -t TEMP, --temp TEMP // temp folder needed to store subset of vcf and SpliceAI annotated vcf.
     -r REFERENCE, --reference REFERENCE // genome fasta, see 'spliceai' python package for download instructions.
 
-<\code>
+```
